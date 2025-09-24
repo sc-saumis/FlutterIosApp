@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dummy Host Site (Flutter)</title>
+    <base href="/" />
+
+    <!-- Your CSS -->
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Auriga widget -->
+    <script src="http://localhost:4200/assets/widget/auriga-widget.js"></script>
+  </head>
+  <body>
+    <!-- Flutter will mount here -->
+    <div id="flutter_container"></div>
+
+    <!-- Auriga container -->
+    <div id="auriga-container"></div>
+
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        if (window.AurigaWidget) {
+          window.AurigaWidget.boot({ orgId: "123456789" });
+        }
+      });
+    </script>
+
+    <script src="flutter.js" defer></script>
+    <script>
+      window.addEventListener("load", function () {
+        _flutter.loader
+          .loadEntrypoint({})
+          .then(function (engineInitializer) {
+            return engineInitializer.initializeEngine();
+          })
+          .then(function (appRunner) {
+            return appRunner.runApp();
+          });
+      });
+    </script>
+  </body>
+</html>
