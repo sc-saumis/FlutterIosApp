@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Auriga Widget App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Your CSS -->
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Auriga widget -->
+    <script src="https://auriga-chat-dev.scryai.com/assets/widget/auriga-widget.js"></script>
+  </head>
+  <body>
+    <!-- Flutter WebView will render this HTML -->
+    <div id="flutter_container"></div>
+
+    <!-- Auriga container -->
+    <div id="auriga-container"></div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        if (window.AurigaWidget) {
+          window.AurigaWidget.boot({ orgId: "123456789" });
+        }
+      });
+    </script>
+  </body>
+</html>
