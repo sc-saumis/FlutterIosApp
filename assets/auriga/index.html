@@ -29,31 +29,31 @@
         }
         
         // Simple PiP prevention that won't break anything
-        function stopAutoPIP() {
-          try {
-            const videos = document.querySelectorAll('video');
-            videos.forEach(video => {
-              video.setAttribute('playsinline', 'true');
-              video.setAttribute('webkit-playsinline', 'true');
+        // function stopAutoPIP() {
+        //   try {
+        //     const videos = document.querySelectorAll('video');
+        //     videos.forEach(video => {
+        //       video.setAttribute('playsinline', 'true');
+        //       video.setAttribute('webkit-playsinline', 'true');
               
-              if (video.disablePictureInPicture !== undefined) {
-                video.disablePictureInPicture = true;
-              }
+        //       if (video.disablePictureInPicture !== undefined) {
+        //         video.disablePictureInPicture = true;
+        //       }
               
-              video.onenterpictureinpicture = function() {
-                if (document.exitPictureInPicture) {
-                  document.exitPictureInPicture();
-                }
-              };
-            });
-          } catch (error) {
-            console.log('PIP prevention error:', error);
-          }
-        }
+        //       video.onenterpictureinpicture = function() {
+        //         if (document.exitPictureInPicture) {
+        //           document.exitPictureInPicture();
+        //         }
+        //       };
+        //     });
+        //   } catch (error) {
+        //     console.log('PIP prevention error:', error);
+        //   }
+        // }
         
         // Run prevention
-        stopAutoPIP();
-        setInterval(stopAutoPIP, 5000);
+        // stopAutoPIP();
+        // setInterval(stopAutoPIP, 5000);
       });
     </script>
   </body>
