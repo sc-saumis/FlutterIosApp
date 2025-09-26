@@ -4,8 +4,6 @@
     <meta charset="UTF-8" />
     <title>Auriga Widget App</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- Your CSS -->
     <link rel="stylesheet" href="style.css" />
@@ -27,33 +25,6 @@
         if (window.AurigaWidget) {
           window.AurigaWidget.boot({ orgId: "123456789" });
         }
-        
-        // Simple PiP prevention that won't break anything
-        // function stopAutoPIP() {
-        //   try {
-        //     const videos = document.querySelectorAll('video');
-        //     videos.forEach(video => {
-        //       video.setAttribute('playsinline', 'true');
-        //       video.setAttribute('webkit-playsinline', 'true');
-              
-        //       if (video.disablePictureInPicture !== undefined) {
-        //         video.disablePictureInPicture = true;
-        //       }
-              
-        //       video.onenterpictureinpicture = function() {
-        //         if (document.exitPictureInPicture) {
-        //           document.exitPictureInPicture();
-        //         }
-        //       };
-        //     });
-        //   } catch (error) {
-        //     console.log('PIP prevention error:', error);
-        //   }
-        // }
-        
-        // Run prevention
-        // stopAutoPIP();
-        // setInterval(stopAutoPIP, 5000);
       });
     </script>
   </body>
