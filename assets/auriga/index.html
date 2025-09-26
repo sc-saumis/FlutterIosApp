@@ -11,6 +11,8 @@
     <!-- Auriga widget -->
     <script src="https://auriga-chat-dev.scryai.com/assets/widget/auriga-widget.js"
         onerror="this.onerror=null;this.src='auriga-widget.js'"></script>
+
+   
   </head>
   <body>
     <!-- Flutter WebView will render this HTML -->
@@ -20,11 +22,58 @@
     <div id="auriga-container"></div>
     <h1>This is a dummy IOS App.</h1>
 
+
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         if (window.AurigaWidget) {
           window.AurigaWidget.boot({ orgId: "123456789" });
         }
+        
+        // Prevent PiP for all video elements using JavaScript
+        function disablePIP() {
+          const videos = document.querySelectorAll('video');
+          videos.forEach(video => {
+            // JavaScript property, not CSS
+            video.disablePictureInPicture = true;
+            video.setAttribute('playsinline', 'true');
+            video.setAttribute('webkit-playsinline', 'true');
+            video.setAttribute('x-webkit-airplay', 'deny');
+            
+            // Prevent PiP through events
+            video.addEventListener('enterpictureinpicture', function(event) {
+              if (document.exitPictureInPicture) {
+                document.exitPictureInPicture().catch(() => {});
+              }
+            });
+            
+            // Also prevent the context menu that might trigger PiP
+            video.addEventListener('contextmenu', function(e) {
+              e.preventDefault();
+              return false;
+            });
+          });
+        }
+        
+        // Run initially and observe for dynamically added videos
+        disablePIP();
+        
+        // Observe for dynamically added videos
+        const observer = new MutationObserver((mutations) => {
+          let shouldCheck = false;
+          mutations.forEach((mutation) => {
+            if (mutation.addedNodes.length) {
+              shouldCheck = true;
+            }
+          });
+          if (shouldCheck) {
+            setTimeout(disablePIP, 100); // Small delay to ensure video is loaded
+          }
+        });
+        
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
       });
     </script>
   </body>
