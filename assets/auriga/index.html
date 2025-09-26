@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <title>Auriga Widget App</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- Your CSS -->
     <link rel="stylesheet" href="style.css" />
@@ -11,8 +13,6 @@
     <!-- Auriga widget -->
     <script src="https://auriga-chat-dev.scryai.com/assets/widget/auriga-widget.js"
         onerror="this.onerror=null;this.src='auriga-widget.js'"></script>
-
-   
   </head>
   <body>
     <!-- Flutter WebView will render this HTML -->
@@ -22,58 +22,38 @@
     <div id="auriga-container"></div>
     <h1>This is a dummy IOS App.</h1>
 
-
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         if (window.AurigaWidget) {
           window.AurigaWidget.boot({ orgId: "123456789" });
         }
         
-        // Prevent PiP for all video elements using JavaScript
-        function disablePIP() {
-          const videos = document.querySelectorAll('video');
-          videos.forEach(video => {
-            // JavaScript property, not CSS
-            video.disablePictureInPicture = true;
-            video.setAttribute('playsinline', 'true');
-            video.setAttribute('webkit-playsinline', 'true');
-            video.setAttribute('x-webkit-airplay', 'deny');
-            
-            // Prevent PiP through events
-            video.addEventListener('enterpictureinpicture', function(event) {
-              if (document.exitPictureInPicture) {
-                document.exitPictureInPicture().catch(() => {});
+        // Simple PiP prevention that won't break anything
+        function stopAutoPIP() {
+          try {
+            const videos = document.querySelectorAll('video');
+            videos.forEach(video => {
+              video.setAttribute('playsinline', 'true');
+              video.setAttribute('webkit-playsinline', 'true');
+              
+              if (video.disablePictureInPicture !== undefined) {
+                video.disablePictureInPicture = true;
               }
+              
+              video.onenterpictureinpicture = function() {
+                if (document.exitPictureInPicture) {
+                  document.exitPictureInPicture();
+                }
+              };
             });
-            
-            // Also prevent the context menu that might trigger PiP
-            video.addEventListener('contextmenu', function(e) {
-              e.preventDefault();
-              return false;
-            });
-          });
+          } catch (error) {
+            console.log('PIP prevention error:', error);
+          }
         }
         
-        // Run initially and observe for dynamically added videos
-        disablePIP();
-        
-        // Observe for dynamically added videos
-        const observer = new MutationObserver((mutations) => {
-          let shouldCheck = false;
-          mutations.forEach((mutation) => {
-            if (mutation.addedNodes.length) {
-              shouldCheck = true;
-            }
-          });
-          if (shouldCheck) {
-            setTimeout(disablePIP, 100); // Small delay to ensure video is loaded
-          }
-        });
-        
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
+        // Run prevention
+        stopAutoPIP();
+        setInterval(stopAutoPIP, 5000);
       });
     </script>
   </body>
