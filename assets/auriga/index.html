@@ -24,6 +24,11 @@
     <button id="sendToIframe">Send to Angular</button>
   </div>
 
+  <!-- 📥 Container for messages coming back from Angular -->
+  <div id="angularMessageBox" style="margin-top:10px; padding:8px; border:1px solid #ccc;">
+    📥 Waiting for message from Angular...
+  </div>
+
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       if (window.AurigaWidget) {
@@ -37,7 +42,8 @@
 
         // Receive from Angular iframe
         AurigaWidget.onMessageFromIframe((msg) => {
-          alert("📥 Message from Angular: " + msg);
+          document.getElementById("angularMessageBox").innerHTML = 
+            "📥 Message from Angular: <b>" + msg + "</b>";
         });
       }
     });
