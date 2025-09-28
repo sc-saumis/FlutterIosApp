@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // Import for checking platform
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/services.dart' show rootBundle;
-
-// Import the platform-specific WKWebView package
-import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
+import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 
 class AurigaScreen extends StatefulWidget {
   const AurigaScreen({super.key});
@@ -18,23 +17,21 @@ class _AurigaScreenState extends State<AurigaScreen> {
   @override
   void initState() {
     super.initState();
-    // Use the WebKit-specific creation params for iOS
-    late final PlatformWebViewControllerCreationParams params;
-    if (WebViewPlatform.instance is WebKitWebViewPlatform) {
-      params = WebKitWebViewControllerCreationParams(
-        // This is the key property to disable PiP
-        allowsPictureInPictureMediaPlayback: false,
-        // You may also want to allow inline playback and disable other media interactions
-        allowsInlineMediaPlayback: true,
-      );
-    } else {
-      params = const PlatformWebViewControllerCreationParams();
-    }
 
-    _controller = WebViewController.fromPlatformCreationParams(params)
+    // Create a new WebViewController instance.
+    _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setMediaPlaybackRequiresUserGesture(false);
 
+    // Conditionally apply iOS-specific configuration
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // Access the platform-specific implementation
+      final platform = _controller.platform;
+      if (platform is WebKitWebViewController) {
+        platform.setAllowsPictureInPictureMediaPlayback(false);
+      }
+    }
+    
     _loadHtmlFromAssets();
   }
 
