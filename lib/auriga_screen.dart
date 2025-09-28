@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Import for checking platform
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 
 class AurigaScreen extends StatefulWidget {
   const AurigaScreen({super.key});
@@ -17,26 +15,17 @@ class _AurigaScreenState extends State<AurigaScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Create a new WebViewController instance.
     _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setMediaPlaybackRequiresUserGesture(false);
+      ..setJavaScriptMode(JavaScriptMode.unrestricted);
 
-    // Conditionally apply iOS-specific configuration
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      // Access the platform-specific implementation
-      final platform = _controller.platform;
-      if (platform is WebKitWebViewController) {
-        platform.setAllowsPictureInPictureMediaPlayback(false);
-      }
-    }
-    
     _loadHtmlFromAssets();
   }
 
   Future<void> _loadHtmlFromAssets() async {
+    // load your index.html from assets folder
     final html = await rootBundle.loadString('assets/auriga/index.html');
+
+    // set baseUrl so that relative links (CSS, JS) resolve correctly
     _controller.loadHtmlString(
       html,
       baseUrl: 'https://auriga-chat-dev.scryai.com',
