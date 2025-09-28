@@ -13,19 +13,35 @@
         onerror="this.onerror=null;this.src='auriga-widget.js'"></script>
   </head>
   <body>
-    <!-- Flutter WebView will render this HTML -->
-    <div id="flutter_container"></div>
+  <div id="flutter_container"></div>
 
-    <!-- Auriga container -->
-    <div id="auriga-container"></div>
-    <h1>This is a dummy IOS App.</h1>
+  <div id="auriga-container"></div>
+  <h1>This is a dummy iOS App.</h1>
 
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        if (window.AurigaWidget) {
-          window.AurigaWidget.boot({ orgId: "H4u2lPNd8o" });
-        }
-      });
-    </script>
-  </body>
+  <!-- Add simple UI for testing -->
+  <div>
+    <input type="text" id="hostInput" placeholder="Message to Angular App">
+    <button id="sendToIframe">Send to Angular</button>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      if (window.AurigaWidget) {
+        window.AurigaWidget.boot({ orgId: "H4u2lPNd8o" });
+
+        // Send to Angular iframe
+        document.getElementById("sendToIframe").addEventListener("click", () => {
+          const msg = document.getElementById("hostInput").value;
+          AurigaWidget.sendMessageToIframe(msg);
+        });
+
+        // Receive from Angular iframe
+        AurigaWidget.onMessageFromIframe((msg) => {
+          alert("📥 Message from Angular: " + msg);
+        });
+      }
+    });
+  </script>
+</body>
+
 </html>
