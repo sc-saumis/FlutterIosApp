@@ -125,7 +125,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
         // Create event listener for room events
         _roomListener = room.createListener();
 
-        // Set up event listeners with CORRECT event types
+        // ONLY use essential events that definitely exist
         _roomListener!.on<TrackSubscribedEvent>((event) {
           _updateStatus("TrackSubscribed: ${event.track.kind}");
           if (event.track is RemoteVideoTrack) {
@@ -153,10 +153,6 @@ class _AvatarScreenState extends State<AvatarScreen> {
             _connected = false;
             _videoTrack = null;
           });
-        });
-
-        _roomListener!.on<ConnectionQualityChangedEvent>((event) {
-          _updateStatus("Connection quality changed: ${event.quality}");
         });
 
         _room = room;
