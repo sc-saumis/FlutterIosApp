@@ -37,7 +37,11 @@
         // Send to Angular iframe
         document.getElementById("sendToIframe").addEventListener("click", () => {
           const msg = document.getElementById("hostInput").value;
-          AurigaWidget.sendMessageToIframe(msg);
+          if (window.AurigaWidget && typeof window.AurigaWidget.avatarInput === 'function') {
+            AurigaWidget.avatarInput({ input: msg });
+          } else {
+            console.warn("AurigaWidget or avatarInput is not available.");
+          }
         });
 
         // Receive from Angular iframe
