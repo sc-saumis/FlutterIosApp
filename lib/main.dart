@@ -269,31 +269,16 @@ class _AvatarScreenState extends State<AvatarScreen> {
                 border: Border.all(color: Colors.black),
                 color: Colors.black,
               ),
-              child: _connected && _room != null
-                  ? Stack(
-                      children: [
-                        // Video
-                        if (_room!.remoteParticipants.isNotEmpty &&
-                            _room!.remoteParticipants.first.videoTrackPublications.isNotEmpty)
-                          VideoTrackWidget(
-                            _room!.remoteParticipants.first.videoTrackPublications.first.track
-                                as RemoteVideoTrack,
-                          ),
-                        // Audio
-                        if (_room!.remoteParticipants.isNotEmpty &&
-                            _room!.remoteParticipants.first.audioTrackPublications.isNotEmpty)
-                          AudioTrackWidget(
-                            _room!.remoteParticipants.first.audioTrackPublications.first.track
-                                as RemoteAudioTrack,
-                          ),
-                      ],
+              child: _connected && _room != null && _room!.remoteParticipants.isNotEmpty
+                  ? ParticipantWidget.participant(
+                      _room!.remoteParticipants.values.first,
+                      showStatsLayer: false,
                     )
                   : const Center(
                       child: Text("No Video/Audio Stream",
                           style: TextStyle(color: Colors.white))),
             ),
           )
-
         ],
       ),
     );
