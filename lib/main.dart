@@ -103,10 +103,12 @@ class _AvatarScreenState extends State<AvatarScreen> {
     _livekitToken = data["access_token"];
     _updateStatus("Session info received ✅");
 
-    final room = Room(RoomOptions(
-      adaptiveStream: true,
-      dynacast: true,
-    ));
+    final room = Room(
+      roomOptions: RoomOptions(
+        adaptiveStream: true,
+        dynacast: true,
+      ),
+    );
 
     room.on<TrackSubscribedEvent>((e) {
       _updateStatus("TrackSubscribed: ${e.track.kind}");
