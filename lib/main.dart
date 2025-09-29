@@ -18,7 +18,6 @@
 //   }
 // }
 
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -63,6 +62,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
   String? _livekitToken;
   bool _connected = false;
 
+  RemoteVideoTrack? _videoTrack;
+
   void _updateStatus(String msg) {
     final timestamp = TimeOfDay.now().format(context);
     setState(() {
@@ -102,19 +103,29 @@ class _AvatarScreenState extends State<AvatarScreen> {
     _livekitToken = data["access_token"];
     _updateStatus("Session info received ✅");
 
-    final room = Room(adaptiveStream: true, dynacast: true);
+    final room = Room(RoomOptions(
+      adaptiveStream: true,
+      dynacast: true,
+    ));
+
     room.on<TrackSubscribedEvent>((e) {
       _updateStatus("TrackSubscribed: ${e.track.kind}");
+      if (e.track is RemoteVideoTrack) {
+        setState(() {
+          _videoTrack = e.track as RemoteVideoTrack;
+        });
+      }
       setState(() {
         _connected = true;
       });
     });
+
     room.on<RoomDisconnectedEvent>((e) {
       _updateStatus("Room disconnected: ${e.reason}");
     });
+
     _room = room;
 
-    // Prepare connection (like JS prepareConnection)
     await room.prepareConnection(_livekitUrl!, _livekitToken!);
     _updateStatus("Room connection prepared ✅");
   }
@@ -176,6 +187,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
       _sessionId = null;
       _sessionToken = null;
       _connected = false;
+      _videoTrack = null;
     });
     _updateStatus("Session closed ✅");
   }
@@ -211,41 +223,27 @@ class _AvatarScreenState extends State<AvatarScreen> {
             child: ListView(
               padding: const EdgeInsets.all(12),
               children: [
-                // Config
                 TextField(
                   controller: serverUrlCtrl,
-                  decoration: const InputDecoration(
-                    labelText: "Server URL",
-                  ),
+                  decoration: const InputDecoration(labelText: "Server URL"),
                 ),
                 TextField(
                   controller: tokenCtrl,
-                  decoration: const InputDecoration(
-                    labelText: "Access Token",
-                  ),
+                  decoration: const InputDecoration(labelText: "Access Token"),
                 ),
                 const SizedBox(height: 12),
-                // Text Input
                 TextField(
                   controller: taskCtrl,
-                  decoration: const InputDecoration(
-                    labelText: "Enter text for avatar",
-                  ),
+                  decoration: const InputDecoration(labelText: "Enter text for avatar"),
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: () => _sendText(taskCtrl.text, task: "repeat"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
                   child: const Text("Repeat Text"),
                 ),
                 const SizedBox(height: 12),
-                // Status Log
-                const Text(
-                  "Session Status:",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                const Text("Session Status:", style: TextStyle(fontWeight: FontWeight.bold)),
                 Container(
                   height: 200,
                   padding: const EdgeInsets.all(8),
@@ -260,7 +258,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
               ],
             ),
           ),
-          // Right side video + audio
+          // Right side video
           Expanded(
             flex: 2,
             child: Container(
@@ -269,13 +267,10 @@ class _AvatarScreenState extends State<AvatarScreen> {
                 border: Border.all(color: Colors.black),
                 color: Colors.black,
               ),
-              child: _connected && _room != null && _room!.remoteParticipants.isNotEmpty
-                  ? ParticipantWidget.participant(
-                      _room!.remoteParticipants.values.first,
-                      showStatsLayer: false,
-                    )
+              child: _connected && _videoTrack != null
+                  ? VideoTrackRenderer(_videoTrack!)
                   : const Center(
-                      child: Text("No Video/Audio Stream",
+                      child: Text("No Video Stream",
                           style: TextStyle(color: Colors.white))),
             ),
           )
