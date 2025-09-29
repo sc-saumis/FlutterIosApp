@@ -73,7 +73,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
   Future<void> _getSessionToken() async {
     final res = await http.post(
-      Uri.parse("${serverUrlCtrl.text}/avatar-api/generate-session-token"),
+      Uri.parse("${serverUrlCtrl.text}/avatar/generate-session-token"),
       headers: {
         "Content-Type": "application/json",
         "access-token": tokenCtrl.text.trim(),
@@ -89,7 +89,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
     _updateStatus("Creating new streaming session...");
 
     final res = await http.post(
-      Uri.parse("${serverUrlCtrl.text}/avatar-api/create-avatar-session"),
+      Uri.parse("${serverUrlCtrl.text}/avatar/create-avatar-session"),
       headers: {
         "Content-Type": "application/json",
         "access-token": tokenCtrl.text.trim(),
@@ -124,7 +124,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
     _updateStatus("Starting streaming session...");
 
     await http.post(
-      Uri.parse("${serverUrlCtrl.text}/avatar-api/start-avatar-session"),
+      Uri.parse("${serverUrlCtrl.text}/avatar/start-avatar-session"),
       headers: {
         "Content-Type": "application/json",
         "access-token": tokenCtrl.text.trim(),
@@ -142,7 +142,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
   Future<void> _sendText(String text, {String task = "repeat"}) async {
     if (_sessionId == null) return;
     await http.post(
-      Uri.parse("${serverUrlCtrl.text}/avatar-api/execute-avatar-task"),
+      Uri.parse("${serverUrlCtrl.text}/avatar/execute-avatar-task"),
       headers: {
         "Content-Type": "application/json",
         "access-token": tokenCtrl.text.trim(),
@@ -160,7 +160,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
   Future<void> _closeSession() async {
     if (_sessionId == null) return;
     await http.post(
-      Uri.parse("${serverUrlCtrl.text}/avatar-api/stop-avatar-session"),
+      Uri.parse("${serverUrlCtrl.text}/avatar/stop-avatar-session"),
       headers: {
         "Content-Type": "application/json",
         "access-token": tokenCtrl.text.trim(),
