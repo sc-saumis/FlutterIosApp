@@ -63,6 +63,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
   bool _isLoading = false;
 
   RemoteVideoTrack? _videoTrack;
+  EventsListener<RoomEvent>? _roomListener;
 
   void _updateStatus(String msg) {
     final timestamp = TimeOfDay.now().format(context);
@@ -120,12 +121,46 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
         final room = Room();
 
-        // Set up event listeners using the correct syntax for livekit_client 2.5.1
-        room
-          ..onTrackSubscribed = _onTrackSubscribed
-          ..onTrackUnsubscribed = _onTrackUnsubscribed
-          ..onDisconnected = _onDisconnected
-          ..onParticipantDisconnected = _onParticipantDisconnected;
+        // Create event listener for room events - CORRECT SYNTAX
+        _roomListener = room.createListener();
+
+        // Set up event listeners - CORRECT SYNTAX for 2.5.1
+        _roomListener!.on<TrackSubscribedEvent>((event) {
+          _updateStatus("TrackSubscribed: ${event.track.kind}");
+          if (event.track is RemoteVideoTrack) {
+            setState(() {
+              _videoTrack = event.track as RemoteVideoTrack;
+            });
+          }
+          setState(() {
+            _connected = true;
+          });
+        });
+
+        _roomListener!.on<TrackUnsubscribedEvent>((event) {
+          _updateStatus("TrackUnsubscribed: ${event.track.kind}");
+          if (event.track is RemoteVideoTrack) {
+            setState(() {
+              _videoTrack = null;
+            });
+          }
+        });
+
+        _roomListener!.on<RoomDisconnectedEvent>((event) {
+          _updateStatus("Room disconnected: ${event.reason}");
+          setState(() {
+            _connected = false;
+            _videoTrack = null;
+          });
+        });
+
+        _roomListener!.on<DisconnectedEvent>((event) {
+          _updateStatus("Disconnected from room");
+          setState(() {
+            _connected = false;
+            _videoTrack = null;
+          });
+        });
 
         _room = room;
 
@@ -137,39 +172,6 @@ class _AvatarScreenState extends State<AvatarScreen> {
     } catch (e) {
       _updateStatus("Error creating session: $e");
     }
-  }
-
-  void _onTrackSubscribed(Track track, RemoteTrackPublication publication, RemoteParticipant participant) {
-    _updateStatus("TrackSubscribed: ${track.kind}");
-    if (track is RemoteVideoTrack) {
-      setState(() {
-        _videoTrack = track;
-      });
-    }
-    setState(() {
-      _connected = true;
-    });
-  }
-
-  void _onTrackUnsubscribed(Track track, RemoteTrackPublication publication, RemoteParticipant participant) {
-    _updateStatus("TrackUnsubscribed: ${track.kind}");
-    if (track is RemoteVideoTrack) {
-      setState(() {
-        _videoTrack = null;
-      });
-    }
-  }
-
-  void _onDisconnected() {
-    _updateStatus("Room disconnected");
-    setState(() {
-      _connected = false;
-      _videoTrack = null;
-    });
-  }
-
-  void _onParticipantDisconnected(RemoteParticipant participant) {
-    _updateStatus("Participant disconnected: ${participant.identity}");
   }
 
   Future<void> _startStreaming() async {
@@ -255,8 +257,9 @@ class _AvatarScreenState extends State<AvatarScreen> {
         }),
       );
       
+      // CORRECT disposal order
+      await _roomListener?.dispose();
       await _room?.disconnect();
-      await _room?.dispose();
       
       setState(() {
         _room = null;
@@ -264,6 +267,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _sessionToken = null;
         _connected = false;
         _videoTrack = null;
+        _roomListener = null;
       });
       _updateStatus("Session closed ✅");
     } catch (e) {
@@ -276,6 +280,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
     serverUrlCtrl.dispose();
     tokenCtrl.dispose();
     taskCtrl.dispose();
+    _roomListener?.dispose();
     _room?.dispose();
     super.dispose();
   }
@@ -364,7 +369,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                 border: Border.all(color: Colors.black),
                 color: Colors.black,
               ),
-              child: _videoTrack != null && _room?.isConnected == true
+              child: _videoTrack != null && _connected
                   ? VideoTrackRenderer(_videoTrack!)
                   : const Center(
                       child: Column(
