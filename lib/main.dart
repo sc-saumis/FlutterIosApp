@@ -17,6 +17,8 @@
 //     );
 //   }
 // }
+
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -121,10 +123,10 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
         final room = Room();
 
-        // Create event listener for room events - CORRECT SYNTAX
+        // Create event listener for room events
         _roomListener = room.createListener();
 
-        // Set up event listeners - CORRECT SYNTAX for 2.5.1
+        // Set up event listeners with CORRECT event types
         _roomListener!.on<TrackSubscribedEvent>((event) {
           _updateStatus("TrackSubscribed: ${event.track.kind}");
           if (event.track is RemoteVideoTrack) {
@@ -154,12 +156,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
           });
         });
 
-        _roomListener!.on<DisconnectedEvent>((event) {
-          _updateStatus("Disconnected from room");
-          setState(() {
-            _connected = false;
-            _videoTrack = null;
-          });
+        _roomListener!.on<ConnectionQualityChangedEvent>((event) {
+          _updateStatus("Connection quality changed: ${event.quality}");
         });
 
         _room = room;
@@ -257,7 +255,6 @@ class _AvatarScreenState extends State<AvatarScreen> {
         }),
       );
       
-      // CORRECT disposal order
       await _roomListener?.dispose();
       await _room?.disconnect();
       
