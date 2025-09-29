@@ -49,5 +49,9 @@
     <true/>
     <key>WKAllowsPictureInPictureMediaPlayback</key>
     <false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera needed for video chat</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone needed for audio chat</string>
 </dict>
 </plist>
