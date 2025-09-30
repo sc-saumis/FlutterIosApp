@@ -1,23 +1,3 @@
-// import 'package:flutter/material.dart';
-// import 'auriga_screen.dart';
-
-// void main() {
-//   runApp(const AurigaDemoApp());
-// }
-
-// class AurigaDemoApp extends StatelessWidget {
-//   const AurigaDemoApp({super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       debugShowCheckedModeBanner: false,
-//       title: 'Auriga Host App',
-//       home: const AurigaScreen(),
-//     );
-//   }
-// }
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -77,7 +57,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
   Future<void> _getSessionToken() async {
     try {
-      _updateStatus("Getting session token...");
+      _updateStatus("Requesting avatar session token from Auriga...");
       final res = await http.post(
         Uri.parse("${serverUrlCtrl.text}/avatar/generate-session-token"),
         headers: {
@@ -85,11 +65,11 @@ class _AvatarScreenState extends State<AvatarScreen> {
           "access-token": tokenCtrl.text.trim(),
         },
       );
-      
+
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         _sessionToken = data["data"]["token"];
-        _updateStatus("Session token obtained ✅");
+        _updateStatus("Session token received for Auriga avatar!");
       } else {
         _updateStatus("Error getting session token: ${res.statusCode}");
       }
@@ -100,7 +80,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
   Future<void> _createNewSession() async {
     if (_sessionToken == null) await _getSessionToken();
-    _updateStatus("Creating new streaming session...");
+    _updateStatus("Creating a new Auriga avatar session...");
     setState(() => _isLoading = true);
 
     try {
@@ -112,22 +92,20 @@ class _AvatarScreenState extends State<AvatarScreen> {
         },
         body: jsonEncode({"sessionToken": _sessionToken}),
       );
-      
+
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body)["data"];
         _sessionId = data["session_id"];
         _livekitUrl = data["url"];
         _livekitToken = data["access_token"];
-        _updateStatus("Session info received ✅");
+        _updateStatus("Session information received for Auriga avatar.");
 
         final room = Room();
-
-        // Create event listener for room events
         _roomListener = room.createListener();
 
-        // ONLY use essential events that definitely exist
         _roomListener!.on<TrackSubscribedEvent>((event) {
-          _updateStatus("TrackSubscribed: ${event.track.kind}");
+          _updateStatus(
+              "Auriga Avatar TrackSubscribed: ${event.track.kind} from ${event.participant.identity}");
           if (event.track is RemoteVideoTrack) {
             setState(() {
               _videoTrack = event.track as RemoteVideoTrack;
@@ -139,7 +117,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
         });
 
         _roomListener!.on<TrackUnsubscribedEvent>((event) {
-          _updateStatus("TrackUnsubscribed: ${event.track.kind}");
+          _updateStatus(
+              "Auriga Avatar TrackUnsubscribed: ${event.track.kind}");
           if (event.track is RemoteVideoTrack) {
             setState(() {
               _videoTrack = null;
@@ -156,9 +135,9 @@ class _AvatarScreenState extends State<AvatarScreen> {
         });
 
         _room = room;
-
         await room.prepareConnection(_livekitUrl!, _livekitToken!);
-        _updateStatus("Room connection prepared ✅");
+        _updateStatus(
+            "Auriga Avatar connection prepared. The Avatar will connect shortly ...");
       } else {
         _updateStatus("Error creating session: ${res.statusCode}");
       }
@@ -172,8 +151,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
       _updateStatus("Session not initialized");
       return;
     }
-    
-    _updateStatus("Starting streaming session...");
+
+    _updateStatus("Starting Auriga Avatar Live Session...");
     setState(() => _isLoading = true);
 
     try {
@@ -191,7 +170,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
       if (res.statusCode == 200) {
         await _room!.connect(_livekitUrl!, _livekitToken!);
-        _updateStatus("Connected to LiveKit room ✅");
+        _updateStatus("Connected to Auriga LiveKit room ✅");
+        _updateStatus("Playing Auriga avatar media");
       } else {
         _updateStatus("Error starting streaming: ${res.statusCode}");
       }
@@ -205,7 +185,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
       _updateStatus("Session not initialized");
       return;
     }
-    
+
     try {
       final res = await http.post(
         Uri.parse("${serverUrlCtrl.text}/avatar/execute-avatar-task"),
@@ -220,9 +200,10 @@ class _AvatarScreenState extends State<AvatarScreen> {
           "task": task
         }),
       );
-      
+
       if (res.statusCode == 200) {
-        _updateStatus("Sent text ($task): $text");
+        _updateStatus(
+            "Sent text to Auriga Avatar ($task): $text");
       } else {
         _updateStatus("Error sending text: ${res.statusCode}");
       }
@@ -233,7 +214,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
   Future<void> _closeSession() async {
     if (_sessionId == null) return;
-    
+
     _updateStatus("Closing session...");
     setState(() => _isLoading = true);
 
@@ -249,10 +230,10 @@ class _AvatarScreenState extends State<AvatarScreen> {
           "sessionId": _sessionId,
         }),
       );
-      
+
       await _roomListener?.dispose();
       await _room?.disconnect();
-      
+
       setState(() {
         _room = null;
         _sessionId = null;
@@ -261,7 +242,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _videoTrack = null;
         _roomListener = null;
       });
-      _updateStatus("Session closed ✅");
+      _updateStatus("Session closed for Auriga Avatar");
     } catch (e) {
       _updateStatus("Error closing session: $e");
     }
@@ -279,6 +260,9 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPortrait =
+        MediaQuery.of(context).orientation == Orientation.portrait;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Auriga | Interactive Avatar"),
@@ -291,11 +275,20 @@ class _AvatarScreenState extends State<AvatarScreen> {
             )
           else
             ElevatedButton(
-              onPressed: _connected ? null : () async {
-                await _createNewSession();
-                await _startStreaming();
-              },
-              child: const Text("Start Session"),
+              onPressed: _connected
+                  ? null
+                  : () async {
+                      await _createNewSession();
+                      await _startStreaming();
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: Size.zero,
+              ),
+              child: const Text("Start", style: TextStyle(fontSize: 14)),
             ),
           const SizedBox(width: 8),
           ElevatedButton(
@@ -303,79 +296,198 @@ class _AvatarScreenState extends State<AvatarScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              minimumSize: Size.zero,
             ),
-            child: const Text("End Session"),
+            child: const Text("End", style: TextStyle(fontSize: 14)),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
         ],
       ),
-      body: Row(
+      body: isPortrait ? _buildPortraitLayout() : _buildLandscapeLayout(),
+    );
+  }
+
+  Widget _buildPortraitLayout() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
         children: [
-          // Left side controls
-          Expanded(
-            flex: 1,
-            child: ListView(
-              padding: const EdgeInsets.all(12),
+          _buildControlsSection(),
+          const SizedBox(height: 16),
+          _buildVideoSection(height: 250, iconSize: 48),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLandscapeLayout() {
+    return Column(
+      children: [
+        Expanded(
+          flex: 1,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: _buildControlsSection(),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _buildVideoSection(iconSize: 64),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVideoSection(
+      {double height = double.infinity, double iconSize = 48}) {
+    return Container(
+      width: double.infinity,
+      height: height == double.infinity ? null : height,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black),
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: _videoTrack != null && _connected
+          ? VideoTrackRenderer(_videoTrack!)
+          : Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.videocam_off, color: Colors.white54, size: iconSize),
+                  const SizedBox(height: 12),
+                  const Text("No Video Stream",
+                      style: TextStyle(color: Colors.white54)),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildControlsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text(
+                  "Configuration",
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: serverUrlCtrl,
-                  decoration: const InputDecoration(labelText: "Server URL"),
+                  decoration: const InputDecoration(
+                    labelText: "Server URL",
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: tokenCtrl,
-                  decoration: const InputDecoration(labelText: "Access Token"),
+                  decoration: const InputDecoration(
+                    labelText: "Access Token",
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Send Text to Auriga Avatar",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: taskCtrl,
-                  decoration: const InputDecoration(labelText: "Enter text for avatar"),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: _connected ? () => _sendText(taskCtrl.text, task: "repeat") : null,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                  child: const Text("Repeat Text"),
+                  decoration: const InputDecoration(
+                    labelText: "Enter text for avatar to speak",
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
                 ),
                 const SizedBox(height: 12),
-                const Text("Session Status:", style: TextStyle(fontWeight: FontWeight.bold)),
-                Container(
-                  height: 200,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    color: Colors.grey.shade200,
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _connected
+                        ? () => _sendText(taskCtrl.text, task: "repeat")
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text("Repeat Text",
+                        style: TextStyle(fontSize: 16)),
                   ),
-                  child: SingleChildScrollView(
-                    child: Text(logText, style: const TextStyle(fontSize: 12)),
-                  ),
-                )
+                ),
               ],
             ),
           ),
-          // Right side video
-          Expanded(
-            flex: 2,
-            child: Container(
-              margin: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black),
-                color: Colors.black,
-              ),
-              child: _videoTrack != null && _connected
-                  ? VideoTrackRenderer(_videoTrack!)
-                  : const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.videocam_off, color: Colors.white54, size: 64),
-                          SizedBox(height: 16),
-                          Text("No Video Stream", style: TextStyle(color: Colors.white54)),
-                        ],
-                      )),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Auriga Avatar Session Status",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  height: 200,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      logText.isEmpty
+                          ? "[11:16:39 AM] Requesting avatar session token from Auriga...\n"
+                          : logText,
+                      style: const TextStyle(
+                          fontSize: 12, fontFamily: 'Monospace'),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          )
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 }
