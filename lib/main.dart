@@ -46,7 +46,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
   String? _livekitToken; // Token for LiveKit connection
   bool _connected = false; // Whether we're connected to the avatar
   bool _isLoading = false; // For showing loading indicator
-
+  // testing demo
   // Video track for displaying the avatar stream
   RemoteVideoTrack? _videoTrack;
   // Listener for room events (connection, disconnection, etc.)
