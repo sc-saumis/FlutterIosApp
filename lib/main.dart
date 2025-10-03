@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 
 void main() {
   runApp(const AurigaApp());
@@ -46,6 +49,9 @@ class _AvatarScreenState extends State<AvatarScreen> {
   String? _livekitToken; // Token for LiveKit connection
   bool _connected = false; // Whether we're connected to the avatar
   bool _isLoading = false; // For showing loading indicator
+  bool _isPcmSelected = false;
+  String? _selectedPcmFileName;
+  Uint8List? _selectedPcmData;
 
   // Video track for displaying the avatar stream
   RemoteVideoTrack? _videoTrack;
@@ -239,7 +245,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
     if (_sessionId == null) return;
 
     _updateStatus("Closing session...");
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true});
 
     try {
       // Tell Auriga server to stop the session
@@ -267,10 +274,92 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _connected = false;
         _videoTrack = null;
         _roomListener = null;
+        _isPcmSelected = false;
+        _selectedPcmFileName = null;
+        _selectedPcmData = null;
       });
       _updateStatus("Session closed for Auriga Avatar");
     } catch (e) {
       _updateStatus("Error closing session: $e");
+    }
+  }
+
+  // Method to select PCM file
+  Future<void> _selectPcmFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pcm'],
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final bytes = await file.readAsBytes();
+
+        if (bytes.lengthInBytes > 10 * 1024 * 1024) { // 10MB limit
+          _updateStatus("File too large. Please select a smaller PCM file.");
+          return;
+        }
+        
+        setState(() {
+          _selectedPcmData = bytes;
+          _selectedPcmFileName = result.files.single.name;
+          _isPcmSelected = true;
+        });
+        _updateStatus("Selected PCM16 audio file: $_selectedPcmFileName");
+      }
+    } catch (e) {
+      _updateStatus("Error selecting PCM file: $e");
+    }
+  }
+
+  // Method to transcribe PCM audio
+  Future<void> _transcribePcmAudio() async {
+    if (_selectedPcmData == null) {
+      _updateStatus("No PCM16 audio file selected!");
+      return;
+    }
+
+    if (_sessionId == null) {
+      _updateStatus("No active Auriga Avatar session");
+      return;
+    }
+
+    _updateStatus("Sending audio to transcription API...");
+    setState(() => _isLoading = true);
+
+    try {
+      // Convert bytes to base64
+      final base64Audio = base64Encode(_selectedPcmData!);
+
+      final res = await http.post(
+        Uri.parse("${serverUrlCtrl.text}/avatar/transcribe"),
+        headers: {
+          "Content-Type": "application/json",
+          "access-token": tokenCtrl.text.trim(),
+        },
+        body: jsonEncode({"audio": base64Audio}),
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['transcription'] != null) {
+          final transcription = data['transcription'];
+          _updateStatus("Transcription result: $transcription");
+          
+          // Automatically send the transcription to the avatar
+          await _sendText(transcription, "repeat");
+        } else {
+          _updateStatus("Transcription failed!");
+        }
+      } else {
+        _updateStatus("Error in transcription: ${res.statusCode}");
+      }
+    } catch (e) {
+      _updateStatus("Error calling transcription API: $e");
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -282,6 +371,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
     taskCtrl.dispose();
     _roomListener?.dispose();
     _room?.dispose();
+    _selectedPcmData = null;
     super.dispose();
   }
 
@@ -493,7 +583,71 @@ class _AvatarScreenState extends State<AvatarScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
+        // NEW: PCM Audio Transcription Card
+        Card(
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Transcribe PCM16 Audio",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                
+                // File selection info
+                if (_selectedPcmFileName != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      "Selected: $_selectedPcmFileName",
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.green,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                
+                // Buttons row
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _sessionId != null ? _selectPcmFile : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text("Select PCM16 Audio"),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: (_isPcmSelected && _sessionId != null && !_isLoading)
+                            ? _transcribePcmAudio
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text("Send Audio"),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+          
         // Status log card
         Card(
           elevation: 2,
