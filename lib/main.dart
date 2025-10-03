@@ -246,7 +246,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
     _updateStatus("Closing session...");
     setState(() {
-      _isLoading = true});
+      _isLoading = true;
+    });
 
     try {
       // Tell Auriga server to stop the session
@@ -349,7 +350,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
           _updateStatus("Transcription result: $transcription");
           
           // Automatically send the transcription to the avatar
-          await _sendText(transcription, "repeat");
+          await _sendText(transcription, task: "repeat");
         } else {
           _updateStatus("Transcription failed!");
         }
