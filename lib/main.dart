@@ -74,7 +74,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
   }
 
   void _updateStatus(String msg, {bool error = false}) {
-    final timestamp = TimeOfDay.now().format(WidgetsBinding.instance.window.locale);
+    final now = DateTime.now();
+    final timestamp = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
     final formattedMsg = error ? '[$timestamp] ERROR: $msg' : '[$timestamp] $msg';
     
     setState(() {
