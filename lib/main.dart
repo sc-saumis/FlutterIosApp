@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
@@ -14,7 +15,7 @@ class AurigaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Auriga | Interactive Avatar',
+      title: 'ScryAI - Auriga | Interactive Avatar',
       theme: ThemeData(primarySwatch: Colors.indigo),
       home: const AvatarScreen(), // The main screen of the app
       debugShowCheckedModeBanner: false,
@@ -33,7 +34,7 @@ class AvatarScreen extends StatefulWidget {
 class _AvatarScreenState extends State<AvatarScreen> {
   // Controllers for text input fields
   final TextEditingController serverUrlCtrl =
-      TextEditingController();
+      TextEditingController(text: "http://localhost:9000");
   final TextEditingController tokenCtrl = TextEditingController();
   final TextEditingController taskCtrl = TextEditingController();
 
@@ -46,20 +47,39 @@ class _AvatarScreenState extends State<AvatarScreen> {
   String? _livekitToken; // Token for LiveKit connection
   bool _connected = false; // Whether we're connected to the avatar
   bool _isLoading = false; // For showing loading indicator
-  // testing demo
+  
+  // Audio file handling
+  html.File? _selectedPcmFile;
+  bool _hasSelectedFile = false;
+  
   // Video track for displaying the avatar stream
   RemoteVideoTrack? _videoTrack;
   // Listener for room events (connection, disconnection, etc.)
   EventsListener<RoomEvent>? _roomListener;
 
   // Helper method to update status messages with timestamp
-  void _updateStatus(String msg) {
+  void _updateStatus(String msg, {bool error = false}) {
     final timestamp = TimeOfDay.now().format(context);
     setState(() {
-      logText += "[$timestamp] $msg\n"; // Append new message with timestamp
-      _isLoading = false; // Hide loading indicator
+      if (error) {
+        logText += "[$timestamp] ERROR: $msg\n";
+      } else {
+        logText += "[$timestamp] $msg\n";
+      }
+      _isLoading = false;
     });
-    debugPrint(msg); // Also print to console for debugging
+    if (error) {
+      debugPrint("ERROR: $msg");
+    } else {
+      debugPrint("INFO: $msg");
+    }
+  }
+
+  // Update file input availability
+  void _updateFileInputAvailability() {
+    setState(() {
+      _hasSelectedFile = _selectedPcmFile != null;
+    });
   }
 
   // Step 1: Get session token from Auriga server
@@ -81,10 +101,10 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _sessionToken = data["data"]["token"];
         _updateStatus("Session token received for Auriga avatar!");
       } else {
-        _updateStatus("Error getting session token: ${res.statusCode}");
+        _updateStatus("Error getting session token: ${res.statusCode}", error: true);
       }
     } catch (e) {
-      _updateStatus("Error getting session token: $e");
+      _updateStatus("Error getting session token: $e", error: true);
     }
   }
 
@@ -137,37 +157,38 @@ class _AvatarScreenState extends State<AvatarScreen> {
           _updateStatus("Auriga Avatar TrackUnsubscribed: ${event.track.kind}");
           if (event.track is RemoteVideoTrack) {
             setState(() {
-              _videoTrack = null; // Clear video track
+              _videoTrack = null;
             });
           }
         });
 
         // Listen for room disconnection
         _roomListener!.on<RoomDisconnectedEvent>((event) {
-          _updateStatus("Room disconnected: ${event.reason}");
+          _updateStatus("Room disconnected: ${event.reason}", error: true);
           setState(() {
             _connected = false;
             _videoTrack = null; // Clear video track
           });
         });
 
-        _room = room; // Store room reference
-        // Prepare connection (but don't connect yet)
+        _room = room;
         await room.prepareConnection(_livekitUrl!, _livekitToken!);
         _updateStatus(
             "Auriga Avatar connection prepared. The Avatar will connect shortly ...");
+        // Enable file input now that session is active
+        _updateFileInputAvailability();
       } else {
-        _updateStatus("Error creating session: ${res.statusCode}");
+        _updateStatus("Error creating session: ${res.statusCode}", error: true);
       }
     } catch (e) {
-      _updateStatus("Error creating session: $e");
+      _updateStatus("Error creating session: $e", error: true);
     }
   }
 
   // Step 3: Start the avatar streaming session
   Future<void> _startStreaming() async {
     if (_sessionId == null || _room == null) {
-      _updateStatus("Session not initialized");
+      _updateStatus("Session not initialized", error: true);
       return;
     }
 
@@ -194,17 +215,17 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _updateStatus("Connected to Auriga LiveKit room ✅");
         _updateStatus("Playing Auriga avatar media");
       } else {
-        _updateStatus("Error starting streaming: ${res.statusCode}");
+        _updateStatus("Error starting streaming: ${res.statusCode}", error: true);
       }
     } catch (e) {
-      _updateStatus("Error starting streaming: $e");
+      _updateStatus("Error starting streaming: $e", error: true);
     }
   }
 
   // Send text to the avatar to make it speak
   Future<void> _sendText(String text, {String task = "repeat"}) async {
     if (_sessionId == null || _room == null) {
-      _updateStatus("Session not initialized");
+      _updateStatus("Session not initialized", error: true);
       return;
     }
 
@@ -227,10 +248,67 @@ class _AvatarScreenState extends State<AvatarScreen> {
       if (res.statusCode == 200) {
         _updateStatus("Sent text to Auriga Avatar ($task): $text");
       } else {
-        _updateStatus("Error sending text: ${res.statusCode}");
+        _updateStatus("Error sending text: ${res.statusCode}", error: true);
       }
     } catch (e) {
-      _updateStatus("Error sending text: $e");
+      _updateStatus("Error sending text: $e", error: true);
+    }
+  }
+
+  // Select PCM file
+  Future<void> _selectPcmFile() async {
+    final input = html.FileUploadInputElement();
+    input.accept = '.pcm';
+    input.click();
+
+    input.onChange.listen((e) {
+      final files = input.files;
+      if (files != null && files.isNotEmpty) {
+        setState(() {
+          _selectedPcmFile = files[0];
+          _hasSelectedFile = true;
+        });
+        _updateStatus("Selected PCM16 audio file: ${_selectedPcmFile!.name}");
+      }
+    });
+  }
+
+  // Transcribe PCM file
+  Future<void> _transcribePcmFile() async {
+    if (_selectedPcmFile == null) {
+      _updateStatus("No PCM16 audio file selected!", error: true);
+      return;
+    }
+    if (_sessionId == null || _sessionToken == null) {
+      _updateStatus("Session information is missing. Please start the session first!", error: true);
+      return;
+    }
+
+    final formData = html.FormData();
+    formData.appendBlob('audio', _selectedPcmFile!, _selectedPcmFile!.name);
+    formData.append('sessionToken', _sessionToken!);
+    formData.append('sessionId', _sessionId!);
+
+    _updateStatus("Sending raw audio file via FormData to transcription API...");
+
+    try {
+      final response = await html.HttpRequest.request(
+        '${serverUrlCtrl.text}/avatar/execute-avatar-audio',
+        method: 'POST',
+        requestHeaders: {
+          'access-token': tokenCtrl.text.trim(),
+        },
+        sendData: formData,
+      );
+
+      final data = json.decode(response.responseText);
+      if (data['transcription'] != null) {
+        _updateStatus("Transcription result: ${data['transcription']}");
+      } else {
+        _updateStatus("Transcription failed!", error: true);
+      }
+    } catch (err) {
+      _updateStatus("Error calling transcription API!", error: true);
     }
   }
 
@@ -267,11 +345,19 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _connected = false;
         _videoTrack = null;
         _roomListener = null;
+        _selectedPcmFile = null;
+        _hasSelectedFile = false;
       });
       _updateStatus("Session closed for Auriga Avatar");
     } catch (e) {
-      _updateStatus("Error closing session: $e");
+      _updateStatus("Error closing session: $e", error: true);
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _updateFileInputAvailability();
   }
 
   @override
@@ -293,8 +379,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Auriga | Interactive Avatar"),
-        backgroundColor: Colors.indigo,
+        title: const Text("ScryAI - Auriga | Interactive Avatar"),
+        backgroundColor: Colors.indigo[700],
         actions: [
           // Start button - only enabled when not connected
           if (_isLoading)
@@ -312,25 +398,25 @@ class _AvatarScreenState extends State<AvatarScreen> {
                       await _startStreaming();
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+                backgroundColor: Colors.green[500],
                 foregroundColor: Colors.white,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 minimumSize: Size.zero,
               ),
-              child: const Text("Start", style: TextStyle(fontSize: 14)),
+              child: const Text("Start Session", style: TextStyle(fontSize: 14)),
             ),
           const SizedBox(width: 8),
           // End button - only enabled when connected
           ElevatedButton(
             onPressed: _connected ? _closeSession : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.red[500],
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               minimumSize: Size.zero,
             ),
-            child: const Text("End", style: TextStyle(fontSize: 14)),
+            child: const Text("End Session", style: TextStyle(fontSize: 14)),
           ),
           const SizedBox(width: 8),
         ],
@@ -340,13 +426,14 @@ class _AvatarScreenState extends State<AvatarScreen> {
     );
   }
 
-  // Layout for portrait orientation (vertical stacking)
   Widget _buildPortraitLayout() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           _buildControlsSection(), // Input controls at top
+          const SizedBox(height: 16),
+          _buildAudioSection(),
           const SizedBox(height: 16),
           _buildVideoSection(height: 250, iconSize: 48), // Video at bottom
         ],
@@ -356,32 +443,50 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
   // Layout for landscape orientation (side by side)
   Widget _buildLandscapeLayout() {
-    return Column(
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           flex: 1,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: _buildControlsSection(), // Controls on left
+              child: Column(
+                children: [
+                  _buildControlsSection(),
+                  const SizedBox(height: 16),
+                  _buildAudioSection(),
+                ],
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 16),
         Expanded(
           flex: 2,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _buildVideoSection(iconSize: 64), // Video on right (larger)
+            child: _buildVideoSection(iconSize: 64),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   // Video display section
   Widget _buildVideoSection(
       {double height = double.infinity, double iconSize = 48}) {
-    return Container(
-      width: double.infinity,
-      height: height == double.infinity ? null : height,
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Auriga Avatar Stream",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.black),
         color: Colors.black,
@@ -398,6 +503,64 @@ class _AvatarScreenState extends State<AvatarScreen> {
                   const SizedBox(height: 12),
                   const Text("No Video Stream",
                       style: TextStyle(color: Colors.white54)),
+                          ],
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAudioSection() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Send Audio to Auriga Avatar",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _connected ? _selectPcmFile : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[600],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text("Select PCM16 Audio"),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: (_connected && _hasSelectedFile) ? _transcribePcmFile : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[600],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text("Send Audio"),
+                  ),
+                ),
+              ],
+            ),
+            if (_hasSelectedFile) ...[
+              const SizedBox(height: 8),
+              Text(
+                "Selected: ${_selectedPcmFile!.name}",
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
                 ],
               ),
             ),
@@ -477,10 +640,15 @@ class _AvatarScreenState extends State<AvatarScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: _connected
-                        ? () => _sendText(taskCtrl.text, task: "repeat")
+                        ? () {
+                            if (taskCtrl.text.trim().isNotEmpty) {
+                              _sendText(taskCtrl.text.trim(), task: "repeat");
+                              taskCtrl.clear();
+                            }
+                          }
                         : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Colors.blue[600],
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
@@ -518,7 +686,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                   child: SingleChildScrollView(
                     child: Text(
                       logText.isEmpty
-                          ? "[11:16:39 AM] Requesting avatar session token from Auriga...\n"
+                          ? "Session status will appear here...\n"
                           : logText,
                       style: const TextStyle(
                           fontSize: 12, fontFamily: 'Monospace'),
