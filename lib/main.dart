@@ -20,9 +20,14 @@ class AurigaApp extends StatelessWidget {
         fontFamily: 'sans-serif',
       ),
       home: const AvatarScreen(),
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: false, // This removes the actual Flutter debug banner
     );
   }
+}
+
+class ApiConfig {
+  String serverUrl = "http://localhost:9000";
+  String accessToken = "";
 }
 
 class AvatarScreen extends StatefulWidget {
@@ -40,6 +45,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
   final List<String> _statusMessages = [];
   final ScrollController _statusScrollController = ScrollController();
   
+  final ApiConfig _apiConfig = ApiConfig();
+  
   Room? _room;
   String? _sessionId;
   String? _sessionToken;
@@ -48,11 +55,9 @@ class _AvatarScreenState extends State<AvatarScreen> {
   bool _isLoading = false;
   bool _connected = false;
   
-  // Audio file handling
   PlatformFile? _selectedPcmFile;
   bool _hasSelectedFile = false;
   
-  // Video track
   VideoTrack? _videoTrack;
   EventsListener<RoomEvent>? _listener;
 
@@ -82,7 +87,6 @@ class _AvatarScreenState extends State<AvatarScreen> {
       _statusMessages.add(formattedMsg);
     });
     
-    // Auto-scroll to bottom
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _statusScrollController.animateTo(
         _statusScrollController.position.maxScrollExtent,
@@ -106,16 +110,17 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
   void _updateConfig() {
     if (_serverUrlController.text.trim().isNotEmpty) {
-      // Config is updated when used
+      _apiConfig.serverUrl = _serverUrlController.text.trim();
     }
     if (_accessTokenController.text.trim().isNotEmpty) {
-      // Config is updated when used
+      _apiConfig.accessToken = _accessTokenController.text.trim();
     }
   }
 
-  String get _serverUrl => _serverUrlController.text.trim();
-  String get _accessToken => _accessTokenController.text.trim();
+  String get _serverUrl => _apiConfig.serverUrl;
+  String get _accessToken => _apiConfig.accessToken;
 
+  // ... (all your API methods remain the same - _getSessionToken, _createNewSession, etc.)
   Future<void> _getSessionToken() async {
     try {
       _updateStatus("Requesting avatar session token from Auriga...");
@@ -146,6 +151,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
       if (_sessionToken == null) await _getSessionToken();
       _updateStatus("Creating a new Auriga Avatar session...");
       setState(() => _isLoading = true);
+      _updateConfig();
 
       final response = await http.post(
         Uri.parse("$_serverUrl/avatar/create-avatar-session"),
@@ -164,14 +170,11 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _livekitToken = sessionData["access_token"];
         _updateStatus("Session information received for Auriga Avatar.");
 
-        // Initialize room
         _room = Room();
         _listener = _room!.createListener();
 
-        // Set up event listeners
         _listener!.on<TrackSubscribedEvent>((event) {
           _updateStatus("Auriga Avatar TrackSubscribed: ${event.track.kind}");
-          
           if (event.track is VideoTrack) {
             setState(() {
               _videoTrack = event.track as VideoTrack;
@@ -215,9 +218,9 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _updateStatus("Auriga Avatar session information missing!", error: true);
         return;
       }
-      
       _updateStatus("Starting Auriga Avatar Live Session...");
       setState(() => _isLoading = true);
+      _updateConfig();
 
       final response = await http.post(
         Uri.parse("$_serverUrl/avatar/start-avatar-session"),
@@ -253,6 +256,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _updateStatus("No active Auriga Avatar session", error: true);
         return;
       }
+      _updateConfig();
 
       final response = await http.post(
         Uri.parse("$_serverUrl/avatar/execute-avatar-task"),
@@ -300,41 +304,32 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
   Future<void> _transcribePcmFile() async {
     _updateConfig();
-    
     if (_selectedPcmFile == null) {
       _updateStatus("No PCM16 audio file selected!", error: true);
       return;
     }
-    
     if (_sessionId == null || _sessionToken == null) {
       _updateStatus("Session information is missing. Please start the session first!", error: true);
       return;
     }
 
     _updateStatus("Sending raw audio file via FormData to transcription API...");
-
     try {
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$_serverUrl/avatar/execute-avatar-audio'),
       );
-
       request.headers['access-token'] = _accessToken;
-
       request.fields['sessionToken'] = _sessionToken!;
       request.fields['sessionId'] = _sessionId!;
 
       if (_selectedPcmFile!.path != null) {
         request.files.add(await http.MultipartFile.fromPath(
-          'audio',
-          _selectedPcmFile!.path!,
-          filename: _selectedPcmFile!.name,
+          'audio', _selectedPcmFile!.path!, filename: _selectedPcmFile!.name,
         ));
       } else if (_selectedPcmFile!.bytes != null) {
         request.files.add(http.MultipartFile.fromBytes(
-          'audio',
-          _selectedPcmFile!.bytes!,
-          filename: _selectedPcmFile!.name,
+          'audio', _selectedPcmFile!.bytes!, filename: _selectedPcmFile!.name,
         ));
       } else {
         _updateStatus("No file data available", error: true);
@@ -365,9 +360,9 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _updateStatus("No active Auriga Avatar session");
         return;
       }
-
       _updateStatus("Closing session...");
       setState(() => _isLoading = true);
+      _updateConfig();
 
       await http.post(
         Uri.parse("$_serverUrl/avatar/stop-avatar-session"),
@@ -394,7 +389,6 @@ class _AvatarScreenState extends State<AvatarScreen> {
         _selectedPcmFile = null;
         _hasSelectedFile = false;
       });
-
       _updateStatus("Session closed for Auriga Avatar");
     } catch (e) {
       _updateStatus("Error closing session: $e", error: true);
@@ -412,66 +406,83 @@ class _AvatarScreenState extends State<AvatarScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: Column(
-        children: [
-          // Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            color: Colors.indigo[700],
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'ScryAI - Auriga | Interactive Avatar',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // FIXED HEADER - No more overflow
+            Container(
+              width: double.infinity, // FIX: Full width
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: Colors.indigo[700], // FIX: Only indigo, no yellow/black
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'ScryAI - Auriga | Interactive Avatar',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: _connected ? null : _startSession,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green[500],
-                        disabledBackgroundColor: Colors.green[500]!.withOpacity(0.5),
-                        foregroundColor: Colors.white,
+                  const SizedBox(width: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min, // FIX: Prevents overflow
+                    children: [
+                      ElevatedButton(
+                        onPressed: _connected ? null : _startSession,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[500],
+                          disabledBackgroundColor: Colors.green[500]!.withOpacity(0.5),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: Size.zero, // FIX: Allows smaller buttons
+                        ),
+                        child: const Text(
+                          'Start',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
-                      child: const Text('Start Session'),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: _connected ? _closeSession : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[500],
-                        foregroundColor: Colors.white,
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _connected ? _closeSession : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[500],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: Size.zero, // FIX: Allows smaller buttons
+                        ),
+                        child: const Text(
+                          'End',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
-                      child: const Text('End Session'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Main Content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth > 1024) {
-                    return _buildDesktopLayout();
-                  } else {
-                    return _buildMobileLayout();
-                  }
-                },
+                    ],
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+
+            // MAIN CONTENT - Fixed layout
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 768) {
+                      return _buildDesktopLayout();
+                    } else {
+                      return _buildMobileLayout();
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -480,7 +491,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Column
+        // LEFT COLUMN
         Expanded(
           flex: 1,
           child: SingleChildScrollView(
@@ -497,8 +508,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
             ),
           ),
         ),
-        const SizedBox(width: 24),
-        // Right Column
+        const SizedBox(width: 16),
+        // RIGHT COLUMN - Video section
         Expanded(
           flex: 2,
           child: _buildVideoSection(),
@@ -528,16 +539,17 @@ class _AvatarScreenState extends State<AvatarScreen> {
   Widget _buildConfigSection() {
     return Card(
       elevation: 2,
+      color: Colors.white, // FIX: Explicit white background
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Configuration',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: Colors.indigo[700],
               ),
             ),
@@ -548,6 +560,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                 labelText: 'Server URL',
                 hintText: 'Enter Server URL (e.g. http://localhost:9000)',
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
             ),
             const SizedBox(height: 12),
@@ -557,6 +570,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                 labelText: 'Access Token',
                 hintText: 'Enter Access Token',
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
             ),
           ],
@@ -568,16 +582,17 @@ class _AvatarScreenState extends State<AvatarScreen> {
   Widget _buildTextInputSection() {
     return Card(
       elevation: 2,
+      color: Colors.white, // FIX: Explicit white background
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Send Text to Auriga Avatar',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: Colors.indigo[700],
               ),
             ),
@@ -590,23 +605,23 @@ class _AvatarScreenState extends State<AvatarScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Enter text for avatar to speak',
                       border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: _connected
-                      ? () {
-                          final text = _taskInputController.text.trim();
-                          if (text.isNotEmpty) {
-                            _sendText(text, taskType: "repeat");
-                            _taskInputController.clear();
-                          }
-                        }
-                      : null,
+                  onPressed: _connected ? () {
+                    final text = _taskInputController.text.trim();
+                    if (text.isNotEmpty) {
+                      _sendText(text, taskType: "repeat");
+                      _taskInputController.clear();
+                    }
+                  } : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[600],
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   child: const Text('Repeat Text'),
                 ),
@@ -621,42 +636,42 @@ class _AvatarScreenState extends State<AvatarScreen> {
   Widget _buildAudioInputSection() {
     return Card(
       elevation: 2,
+      color: Colors.white, // FIX: Explicit white background
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Send Audio to Auriga Avatar',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: Colors.indigo[700],
               ),
             ),
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _connected ? _selectPcmFile : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[600],
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Select PCM16 Audio'),
+                ElevatedButton(
+                  onPressed: _connected ? _selectPcmFile : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
+                  child: const Text('Select PCM16 Audio'),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: (_connected && _hasSelectedFile) ? _transcribePcmFile : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[600],
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Send Audio'),
+                ElevatedButton(
+                  onPressed: (_connected && _hasSelectedFile) ? _transcribePcmFile : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
+                  child: const Text('Send Audio'),
                 ),
               ],
             ),
@@ -676,22 +691,23 @@ class _AvatarScreenState extends State<AvatarScreen> {
   Widget _buildStatusSection() {
     return Card(
       elevation: 2,
+      color: Colors.white, // FIX: Explicit white background
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Auriga Avatar Session Status',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: Colors.indigo[700],
               ),
             ),
             const SizedBox(height: 12),
             Container(
-              height: 200,
+              height: 150,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.grey[50],
@@ -719,24 +735,26 @@ class _AvatarScreenState extends State<AvatarScreen> {
   Widget _buildVideoSection() {
     return Card(
       elevation: 2,
+      color: Colors.white, // FIX: Explicit white background
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Auriga Avatar Stream',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: Colors.indigo[700],
               ),
             ),
             const SizedBox(height: 12),
             Container(
-              height: 400,
+              height: 300,
+              width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.black,
+                color: Colors.black, // Only black for video area
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.black),
               ),
